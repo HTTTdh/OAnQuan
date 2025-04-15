@@ -41,9 +41,9 @@ class Minimax:
 
     def KiemTraKetThuc(self, node):
         if (
-            (self.s[0] == 0 and self.s[6] == 0) or
-            (self.diemmay < 5 and all(self.s[i] == 0 for i in range(1, 6))) or
-            (self.diemnguoi < 5 and all(self.s[i] == 0 for i in range(7, 12)))
+            (node.s[0] == 0 and node.s[6] == 0) or
+            (node.diemmay < 5 and all(node.s[i] == 0 for i in range(1, 6))) or
+            (node.diemnguoi < 5 and all(node.s[i] == 0 for i in range(7, 12)))
           ):
           return True
         return False
@@ -54,7 +54,6 @@ class Minimax:
          self.DANHSACHDI[f] = hientai.cachdi
 
       return f
-
 
     def NodeKe(self, node):
         buoc_di = self.BuocDi(node)
@@ -72,20 +71,16 @@ class Minimax:
     def Move(self, node, buocdi):
         vitri, chieu = buocdi
         _s = copy.deepcopy(node.s)
-        # print(f"Trạng thái ban đầu: {_s}")
         diem = 0
         soluong = _s[vitri]
         _s[vitri] = 0
         MATLUOT = False
-        # print(f"Bắt đầu di chuyển từ vị trí {vitri} theo chiều {chieu}")
         while soluong > 0:
             vitri = self.SuaViTri(vitri + chieu)
             _s[vitri] += 1
             soluong -= 1
-            # print(f"Di chuyển đến vị trí {vitri}, trạng thái hiện tại: {_s}")
         while not MATLUOT:
             vitri_ke = self.SuaViTri(vitri + chieu)
-            # print(f"Kiểm tra vị trí kế tiếp {vitri_ke}, giá trị: {_s[vitri_ke]}")
             if _s[vitri_ke] > 0 and (vitri_ke != 0 and vitri_ke != 6):
                 soluong = _s[vitri_ke]
                 _s[vitri_ke] = 0
@@ -138,6 +133,7 @@ class Minimax:
                 best_move = ke.cachdi
 
         return best_move
+
 class board:
     def __init__(self, pits, quan_pits, board):
         self.pits = pits
@@ -165,7 +161,7 @@ class board:
             3: pygame.transform.scale(pygame.image.load(os.path.join('Assets', '3rock.png')), (60,60)),
             4: pygame.transform.scale(pygame.image.load(os.path.join('Assets', '4rock.png')), (60,60)),
             5: pygame.transform.scale(pygame.image.load(os.path.join('Assets', '5rock.png')), (60,60)),
-            6: pygame.transform.scale(pygame.image.load(os.path.join('Assets', '5rock.png')), (60,60))
+            6: pygame.transform.scale(pygame.image.load(os.path.join('Assets', '6rock.png')), (60,60))
         }
         self.default_stone_img = pygame.transform.scale(
             pygame.image.load(os.path.join('Assets', 'manyrock.png')), (60,60)
@@ -182,7 +178,7 @@ class board:
         self.quan_colors = [(255, 255, 255), (255, 255, 255)]
         self.width, self.height = 640, 400
         self.selected_pit = None 
-
+        
     def draw(self, screen):
         screen.blit(self.background, (0, 0))
         
@@ -196,21 +192,20 @@ class board:
             
             num_stones = self._BanCo[i]
             
-            # Vẽ hình ảnh số lượng đá
             if num_stones > 0:
-                if num_stones <= 6:
-                    stone_img = self.stone_images[num_stones]
-                else:
-                    stone_img = self.default_stone_img
-                
-                img_rect = stone_img.get_rect(center=(center_x, center_y))
-                screen.blit(stone_img, img_rect)
-                
-                # Hiển thị số lượng ở góc dưới bên phải
-                text = self.pit_font.render(str(num_stones), True, self.text_color)
-                text_rect = text.get_rect(bottomright=(x + w - 5, y + h - 5))
-                screen.blit(text, text_rect)
-        
+               if num_stones <= 6:
+                   stone_img = self.stone_images[num_stones]
+               else:
+                   stone_img = self.default_stone_img
+
+               img_rect = stone_img.get_rect(center=(center_x, center_y))
+               screen.blit(stone_img, img_rect)
+
+               # Hiển thị số lượng ở góc dưới bên phải
+               text = self.pit_font.render(str(num_stones), True, self.text_color)
+               text_rect = text.get_rect(bottomright=(x + w - 5, y + h - 5))
+               screen.blit(text, text_rect)
+
         # Vẽ các ô quan (thiết kế mới)
         for i, quan_rect in enumerate(self.quan_pits):
             x, y, w, h = quan_rect
@@ -346,11 +341,7 @@ class board:
         self._diemmay = nextNode.max_scored
         self._luotnguoi = nextNode.luotnguoi
         self.selected_pit = None  
-
-        print(f"Next turn: {'Human' if self._luotnguoi else 'AI'}")
-        print(f"Board state: {self._BanCo}")
-        print(f"Scores - Player: {self._diemnguoi}, AI: {self._diemmay}")
-        
+        print(f"Ban co: {self._BanCo}")
         self.KiemTra()
         self.ThieuQuan()
 
@@ -393,7 +384,16 @@ class App:
         pygame.init()
         self.screen = pygame.display.set_mode((640, 400), RESIZABLE)
         pygame.display.set_caption("Ô Ăn Quan")
-        
+        self.sound_effects = {
+            # 'stone_drop': pygame.mixer.Sound(os.path.join('Assets', 'stone_drop.wav')),
+            'stone_pickup': pygame.mixer.Sound(os.path.join('Assets', 'stone_pickup.mp3')),
+            # 'capture': pygame.mixer.Sound(os.path.join('Assets', 'capture.wav')),
+            # 'win': pygame.mixer.Sound(os.path.join('Assets', 'win.wav')),
+            # 'lose': pygame.mixer.Sound(os.path.join('Assets', 'lose.wav'))
+        }
+         # Điều chỉnh âm lượng
+        for sound in self.sound_effects.values():
+            sound.set_volume(0.5)
         self.initial_pits = [
             (535, 170, 60, 80),
             (150, 140, 50, 50),   
@@ -442,10 +442,11 @@ class App:
                         self.t.draw(self.screen)
                         pygame.display.update()
                         
-                        pygame.time.delay(2000)
+                        pygame.time.delay(3000)
                         
                         # AI đi tiếp
                         self.t.AIMove()
+                        pygame.time.delay(3000)                      
                         
                         # Cập nhật màn hình sau khi AI đi
                         self.screen.fill(Color('gray'))
@@ -457,7 +458,7 @@ class App:
     def run(self):
         """Vòng lặp chính của game"""
         clock = pygame.time.Clock()
-        
+        self.sound_effects['stone_pickup'].play()
         while self.running:
             self.running = self.handle_events()
             
