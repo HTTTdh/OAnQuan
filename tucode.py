@@ -136,6 +136,9 @@ class Minimax:
 
 class board:
     def __init__(self, pits, quan_pits, board):
+        self.step_index = 0
+        self.last_update_time = pygame.time.get_ticks()
+        self.step_interval = 300
         self.pits = pits
         self.quan_pits = quan_pits
         self.board = board
@@ -181,81 +184,97 @@ class board:
         
     def draw(self, screen):
         screen.blit(self.background, (0, 0))
-        
-        for i, pit_rect in enumerate(self.pits):
+ 
+        # Cập nhật step_index để xử lý hiệu ứng ảnh viên đá
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_update_time >= self.step_interval:
+            if self.step_index < len(self.pits):
+                self.step_index += 1
+                self.last_update_time = current_time
+ 
+        # VẼ CÁC Ô DÂN NGAY LẬP TỨC (KHÔNG CÓ delay)
+        for pit_rect in self.pits:
             x, y, w, h = pit_rect
-            center_x, center_y = x + w//2, y + h//2
-            
-            # Vẽ nền ô dân
+            center_x, center_y = x + w // 2, y + h // 2
             pygame.draw.circle(screen, self.pit_fill_color, (center_x, center_y), self.pit_radius)
             pygame.draw.circle(screen, self.pit_border_color, (center_x, center_y), self.pit_radius, 2)
-            
-            num_stones = self._BanCo[i]
-            
-            if num_stones > 0:
-               if num_stones <= 6:
-                   stone_img = self.stone_images[num_stones]
-               else:
-                   stone_img = self.default_stone_img
-
-               img_rect = stone_img.get_rect(center=(center_x, center_y))
-               screen.blit(stone_img, img_rect)
-
-               # Hiển thị số lượng ở góc dưới bên phải
-               text = self.pit_font.render(str(num_stones), True, self.text_color)
-               text_rect = text.get_rect(bottomright=(x + w - 5, y + h - 5))
-               screen.blit(text, text_rect)
-
-        # Vẽ các ô quan (thiết kế mới)
+ 
+        # VẼ CÁC Ô QUAN NGAY LẬP TỨC (KHÔNG CÓ delay)
         for i, quan_rect in enumerate(self.quan_pits):
             x, y, w, h = quan_rect
-            
-            # Vẽ nền ô quan
             pygame.draw.rect(screen, self.quan_fill_color, quan_rect, border_radius=10)
             pygame.draw.rect(screen, self.quan_border_color, quan_rect, 3, border_radius=10)
-            
-            # Vẽ hình ảnh quan
-            img_rect = self.img_quan.get_rect(center=(x + w//2, y + h//2))
+ 
+        # VẼ ẢNH VIÊN ĐÁ (THEO HIỆU ỨNG step_index)
+        for i in range(self.step_index):
+            if (i ==0 or i == 6):
+                continue
+            pit_rect = self.pits[i]
+            x, y, w, h = pit_rect
+            center_x, center_y = x + w // 2, y + h // 2
+            num_stones = self._BanCo[i]
+            if num_stones > 0:
+                if num_stones <= 6:
+                    stone_img = self.stone_images[num_stones]
+                else:
+                    stone_img = self.default_stone_img
+ 
+                img_rect = stone_img.get_rect(center=(center_x, center_y))
+                screen.blit(stone_img, img_rect)
+ 
+                text = self.pit_font.render(str(num_stones), True, self.text_color)
+                text_rect = text.get_rect(bottomright=(x + w + 5, y + h +5))
+                screen.blit(text, text_rect)
+ 
+        # VẼ ẢNH VIÊN QUAN
+        for i, quan_rect in enumerate(self.quan_pits):
+            x, y, w, h = quan_rect
+            img_rect = self.img_quan.get_rect(center=(x + w // 2, y + h // 2))
             screen.blit(self.img_quan, img_rect)
-            
-            # Hiển thị số lượng quan ở góc dưới
+ 
             quan_value = self._BanCo[0] if i == 1 else self._BanCo[6]
             if quan_value > 0:
                 text = self.quan_font.render(str(quan_value), True, self.text_color)
-                text_rect = text.get_rect(center=(x + w//2, y + h - 15))
+                text_rect = text.get_rect(center=(x + w // 2, y + h +15))
                 screen.blit(text, text_rect)
-
+ 
+        # Vẽ điểm số
         font_large = pygame.font.Font(None, 36)
         font_small = pygame.font.Font(None, 24)
         pygame.draw.rect(screen, (50, 50, 50, 150), (30, 30, 200, 80), border_radius=10)
         pygame.draw.rect(screen, (50, 50, 50, 150), (410, 30, 200, 80), border_radius=10)
+ 
         player_title = font_small.render("PLAYER", True, (200, 200, 255))
         player_score = font_large.render(f"{self._diemnguoi}", True, (255, 255, 255))
         screen.blit(player_title, (50, 35))
         screen.blit(player_score, (50, 60))
+ 
         ai_title = font_small.render("COMPUTER", True, (255, 200, 200))
         ai_score = font_large.render(f"{self._diemmay}", True, (255, 255, 255))
         screen.blit(ai_title, (430, 35))
         screen.blit(ai_score, (430, 60))
+ 
+        # Hiển thị lượt
         turn_text = font_small.render(
-        "Your turn" if self._luotnguoi else "Computer's turn", 
-        True, 
-        (100, 255, 100) if self._luotnguoi else (255, 100, 100)
+            "Your turn" if self._luotnguoi else "Computer's turn",
+            True,
+            (100, 255, 100) if self._luotnguoi else (255, 100, 100)
         )
         screen.blit(turn_text, (270, 30))
-
+ 
+        # Mũi tên chỉ pit được chọn
         if self.selected_pit is not None and self._luotnguoi:
             pit_x, pit_y, _, _ = self.pits[self.selected_pit]
             screen.blit(self.img_left, (pit_x - 40, pit_y))
             screen.blit(self.img_right, (pit_x + 40, pit_y))
-        # Hiển thị thông báo Game Over nếu trò chơi kết thúc
+ 
+ 
+        # Hiển thị Game Over nếu có
         if self._endgame:
-            # Tạo một surface nửa trong suốt để làm nền
             overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-            overlay.fill((0, 0, 0, 180))  # Màu đen với độ trong suốt
+            overlay.fill((0, 0, 0, 180))
             screen.blit(overlay, (0, 0))
 
-            # Hiển thị thông báo Game Over
             font_large = pygame.font.Font(None, 72)
             font_medium = pygame.font.Font(None, 36)
 
@@ -266,25 +285,16 @@ class board:
             else:
                 result_text = font_large.render("Draw!", True, (255, 255, 100))
 
-            screen.blit(result_text, 
-                       (self.width//2 - result_text.get_width()//2, 
-                        self.height//2 -100))
+            screen.blit(result_text, (self.width // 2 - result_text.get_width() // 2, self.height // 2 - 100))
 
-            # Hiển thị điểm cuối cùng
             score_text = font_medium.render(
-                f"Final Score: {self._diemnguoi} - {self._diemmay}", 
-                True, (255, 255, 255))
-            screen.blit(score_text, 
-                       (self.width//2 - score_text.get_width()//2, 
-                        self.height//2 + 50))
+                f"Final Score: {self._diemnguoi} - {self._diemmay}", True, (255, 255, 255))
+            screen.blit(score_text, (self.width // 2 - score_text.get_width() // 2, self.height // 2 + 50))
 
-            # Hiển thị hướng dẫn
             restart_text = font_medium.render(
-                "Press R to restart or ESC to quit", 
-                True, (200, 200, 200))
-            screen.blit(restart_text, 
-                       (self.width//2 - restart_text.get_width()//2, 
-                        self.height//2 + 100))
+                "Press R to restart or ESC to quit", True, (200, 200, 200))
+            screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2, self.height // 2 + 100))
+
 
     def handle_click(self, pos):
         x, y = pos
@@ -381,6 +391,9 @@ class board:
 
 class App:
     def __init__(self):
+        self.ai_pending = False
+        self.ai_start_time = 0
+        self.ai_delay = 3000  # Thời gian chờ trước khi AI đi (ms)
         pygame.init()
         self.screen = pygame.display.set_mode((640, 400), RESIZABLE)
         pygame.display.set_caption("Ô Ăn Quan")
@@ -425,52 +438,55 @@ class App:
         for event in pygame.event.get():
             if event.type == QUIT:
                 return False
-            
+
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     return False
                 if event.key == K_r and self.t._endgame:
                     self.reset_game()
                     return True
-            
+
             if event.type == MOUSEBUTTONDOWN:
-                if event.button == 1:  # Chuột trái
+                if event.button == 1:  
                     pos = pygame.mouse.get_pos()
                     clicked = self.t.handle_click(pos)
+
                     if clicked and not self.t._luotnguoi and not self.t._endgame:
-                        self.screen.fill(Color('gray'))
-                        self.t.draw(self.screen)
-                        pygame.display.update()
-                        
-                        pygame.time.delay(3000)
-                        
-                        # AI đi tiếp
-                        self.t.AIMove()
-                        pygame.time.delay(3000)                      
-                        
-                        # Cập nhật màn hình sau khi AI đi
-                        self.screen.fill(Color('gray'))
-                        self.t.draw(self.screen)
-                        pygame.display.update()
-        
+                        self.t.step_index = 0  
+                        self.ai_pending = True
+                        self.ai_start_time = pygame.time.get_ticks()
+
         return True
+
 
     def run(self):
         """Vòng lặp chính của game"""
         clock = pygame.time.Clock()
         self.sound_effects['stone_pickup'].play()
+
+        self.ai_pending = False
+        self.ai_start_time = 0
+        self.ai_delay = 3500  # 1 giây chờ trước khi AI đi
+
         while self.running:
             self.running = self.handle_events()
-            
+
+            # Xử lý AI nếu đang chờ
+            current_time = pygame.time.get_ticks()
+            if self.ai_pending and current_time - self.ai_start_time >= self.ai_delay:
+                self.t.AIMove()
+                self.t.step_index = 0  # Reset hiệu ứng vẽ
+                self.ai_pending = False
+
             # Vẽ game
             self.screen.fill(Color('gray'))
             self.t.draw(self.screen)
             pygame.display.update()
-            
-            # Giới hạn FPS
+
             clock.tick(60)
-        
+
         pygame.quit()
+
 
 if __name__ == '__main__':
     App().run()
