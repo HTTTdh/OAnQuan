@@ -175,7 +175,7 @@ class board:
         self.img_right = pygame.image.load(os.path.join('Assets', 'arrow_right.png'))
         self.img_right = pygame.transform.scale(self.img_right, (60,60))
         self._minimax = Minimax()
-        self._searchDepth = 2
+        self._searchDepth = 2   
         self.pit_colors = [(255, 255, 255), (255, 255, 255)]
         self.quan_colors = [(255, 255, 255), (255, 255, 255)]
         self.width, self.height = 640, 400
@@ -186,6 +186,16 @@ class board:
         self.current_move_index = 0  # Vị trí hiện tại trong đường đi
         self.pending_update = None
         self.animation_running= False
+        self.animation_steps = []  # Danh sách các bước di chuyển
+        self.current_animation_step = 0
+        self.animation_delay = 300  # Thời gian delay giữa các bước (ms)
+        self.last_animation_time = 0
+        self.animation_source_pit = None  # Ô nguồn bắt đầu di chuyển
+        self.animation_direction = 1  # Hướng di chuyển (1: phải, -1: trái)
+        self.animation_stones_left = 0  # Số viên đá còn lại cần di chuyển
+        self.animation_current_pit = None 
+        self.animation_speed = 0.5  # Tốc độ hiệu ứng (0.1-1.0), càng nhỏ càng chậm
+        self.step_interval = int(500 / self.animation_speed)
     def UpdateGameState(self, nextNode):
         self._BanCo = nextNode.s
         self._diemnguoi = nextNode.min_scored
@@ -198,21 +208,8 @@ class board:
         self.ThieuQuan()   
     def draw(self, screen):
         screen.blit(self.background, (0, 0))
-        current_time = pygame.time.get_ticks()
-
-        # Cập nhật hiệu ứng di chuyển
-        if self.current_move_path and current_time - self.last_update_time >= self.step_interval:
-            self.current_move_index += 1
-            self.last_update_time = current_time
-            if self.current_move_index >= len(self.current_move_path):
-                self.current_move_path = []
-                self.current_move_index = 0
-                self.animation_running = False
-                if self.pending_update:
-                    self._apply_game_state(self.pending_update)
-                    self.pending_update = None
-
-        # Vẽ tất cả các ô dân (chỉ phần nền)
+        
+        # Vẽ các ô dân (chỉ phần nền)
         for i, pit_rect in enumerate(self.pits):
             x, y, w, h = pit_rect
             center_x, center_y = x + w // 2, y + h // 2
@@ -224,60 +221,33 @@ class board:
             x, y, w, h = quan_rect
             pygame.draw.rect(screen, self.quan_fill_color, quan_rect, border_radius=10)
             pygame.draw.rect(screen, self.quan_border_color, quan_rect, 3, border_radius=10)
-
             img_rect = self.img_quan.get_rect(center=(x + w // 2, y + h // 2))
             screen.blit(self.img_quan, img_rect)
-
             quan_value = self._BanCo[0] if i == 0 else self._BanCo[6]
             if quan_value > 0:
                 text = self.quan_font.render(str(quan_value), True, self.text_color)
                 text_rect = text.get_rect(center=(x + w // 2, y + h + 15))
                 screen.blit(text, text_rect)
 
-        # Vẽ các viên đá trên tất cả các ô (giữ nguyên trạng thái)
-        for i, pit_rect in enumerate(self.pits):
-            if i in (0, 6):  # Bỏ qua ô quan (đã vẽ ở trên)
-                continue
-
-            x, y, w, h = pit_rect
-            center_x, center_y = x + w // 2, y + h // 2
-            num_stones = self._BanCo[i]
-
-            # Chỉ vẽ đá nếu:
-            # 1. Không có hiệu ứng di chuyển nào đang chạy, HOẶC
-            # 2. Ô này chưa nằm trong phần đường đi sắp tới của hiệu ứng
-            if not self.animation_running or i not in self.current_move_path[self.current_move_index:]:
+        # Vẽ các viên đá trên các ô (khi không có animation)
+        if not self.animation_steps:
+            for i, pit_rect in enumerate(self.pits):
+                if i in (0, 6): continue  # Bỏ qua ô quan
+                
+                x, y, w, h = pit_rect
+                center_x, center_y = x + w//2, y + h//2
+                num_stones = self._BanCo[i]
+                
                 if num_stones > 0:
                     stone_img = self.stone_images.get(num_stones, self.default_stone_img)
                     img_rect = stone_img.get_rect(center=(center_x, center_y))
                     screen.blit(stone_img, img_rect)
-
+                    
                     text = self.pit_font.render(str(num_stones), True, self.text_color)
-                    text_rect = text.get_rect(bottomright=(x + w - 5, y + h - 5))
-                    screen.blit(text, text_rect)
-
-        # Vẽ hiệu ứng di chuyển (nếu có)
-        if self.animation_running and self.current_move_path:
-            current_pit = self.current_move_path[self.current_move_index]
-            if current_pit not in (0, 6):  # Không vẽ hiệu ứng trên ô quan
-                x, y, w, h = self.pits[current_pit]
-                center_x, center_y = x + w // 2, y + h // 2
-                num_stones = self._BanCo[current_pit]
-
-                if num_stones > 0:
-                    # Vẽ hiệu ứng đặc biệt cho ô đang được di chuyển qua
-                    stone_img = self.stone_images.get(num_stones, self.default_stone_img)
-                    img_rect = stone_img.get_rect(center=(center_x, center_y))
-                    screen.blit(stone_img, img_rect)
-
-                    # Làm nổi bật ô đang di chuyển qua
-                    highlight_surface = pygame.Surface((w, h), pygame.SRCALPHA)
-                    highlight_surface.fill((255, 255, 0, 50))  # Màu vàng nhạt trong suốt
-                    screen.blit(highlight_surface, (x, y))
-
-                    text = self.pit_font.render(str(num_stones), True, (255, 0, 0))  # Chữ đỏ
-                    text_rect = text.get_rect(bottomright=(x + w - 5, y + h - 5))
-                    screen.blit(text, text_rect)
+                    screen.blit(text, (x + w - 20, y + h - 20))
+        else:
+            # Vẽ animation di chuyển
+            self._draw_animation(screen)
 
         # Vẽ UI và các thành phần khác
         self._draw_ui(screen)
@@ -289,6 +259,139 @@ class board:
 
         if self._endgame:
             self._draw_endgame(screen)
+
+    def _draw_animation(self, screen):
+        """Vẽ hiệu ứng di chuyển từng viên đá một, bao gồm cả ô quan"""
+        current_time = pygame.time.get_ticks()
+        
+        if current_time - self.last_animation_time > self.animation_delay:
+            self.last_animation_time = current_time
+            self.current_animation_step += 1
+            
+            if self.current_animation_step >= len(self.animation_steps):
+                self.animation_steps = []
+                self._apply_game_state(self.pending_update)
+                self.pending_update = None
+                return
+        
+        step = self.animation_steps[self.current_animation_step]
+        
+        # Vẽ tất cả các ô dân
+        for i, pit_rect in enumerate(self.pits):
+            if i in (0, 6): continue  # Ô quan vẽ riêng
+            
+            x, y, w, h = pit_rect
+            center_x, center_y = x + w//2, y + h//2
+            num_stones = step['board'][i]
+            
+            # Vẽ nền ô
+            pygame.draw.circle(screen, self.pit_fill_color, (center_x, center_y), self.pit_radius)
+            pygame.draw.circle(screen, self.pit_border_color, (center_x, center_y), self.pit_radius, 2)
+            
+            if num_stones > 0:
+                stone_img = self.stone_images.get(num_stones, self.default_stone_img)
+                img_rect = stone_img.get_rect(center=(center_x, center_y))
+                screen.blit(stone_img, img_rect)
+                
+                # Highlight ô đang di chuyển đến
+                if i == step['current_pit']:
+                    highlight = pygame.Surface((w, h), pygame.SRCALPHA)
+                    highlight.fill((255, 255, 0, 80))
+                    screen.blit(highlight, (x, y))
+                
+                text = self.pit_font.render(str(num_stones), True, self.text_color)
+                screen.blit(text, (x + w - 20, y + h - 20))
+
+        # Vẽ các ô quan với hiệu ứng
+        for i, quan_rect in enumerate(self.quan_pits):
+            x, y, w, h = quan_rect
+            quan_index = 0 if i == 0 else 6
+            num_stones = step['board'][quan_index]
+            
+            # Thay đổi màu nền khi có hiệu ứng
+            if quan_index == step['current_pit']:
+                fill_color = (255, 220, 180)  # Màu sáng hơn khi được highlight
+                border_color = (180, 120, 60)  # Màu viền đậm hơn
+            else:
+                fill_color = self.quan_fill_color
+                border_color = self.quan_border_color
+            
+            pygame.draw.rect(screen, fill_color, quan_rect, border_radius=10)
+            pygame.draw.rect(screen, border_color, quan_rect, 3, border_radius=10)
+            
+            img_rect = self.img_quan.get_rect(center=(x + w // 2, y + h // 2))
+            screen.blit(self.img_quan, img_rect)
+            
+            if num_stones > 0:
+                text = self.quan_font.render(str(num_stones), True, self.text_color)
+                text_rect = text.get_rect(center=(x + w // 2, y + h + 15))
+                screen.blit(text, text_rect)
+
+    def prepare_move_animation(self, start_pos, direction, new_board_state):
+        """Chuẩn bị các bước di chuyển cho animation, bao gồm cả ô quan"""
+        self.pending_update = new_board_state
+        self.animation_steps = []
+        
+        temp_board = self._BanCo.copy()
+        stones_to_move = temp_board[start_pos]
+        temp_board[start_pos] = 0
+        
+        current_pos = start_pos
+        self.animation_steps.append({
+            'board': temp_board.copy(),
+            'current_pit': None,
+            'stones_left': stones_to_move
+        })
+        
+        for stone in range(stones_to_move):
+            current_pos += direction
+            # Xử lý vòng quanh bàn cờ
+            if current_pos < 0: current_pos = 11
+            elif current_pos > 11: current_pos = 0
+            
+            temp_board[current_pos] += 1
+            
+            # Thêm bước vào animation (bao gồm cả khi qua ô quan)
+            self.animation_steps.append({
+                'board': temp_board.copy(),
+                'current_pit': current_pos,
+                'stones_left': stones_to_move - stone - 1
+            })
+        
+        self.current_animation_step = 0
+        self.last_animation_time = pygame.time.get_ticks()
+
+
+    def HumanMove(self, position, chieu):
+        if not self._luotnguoi or self._endgame:
+            return
+            
+        current = Node(self._luotnguoi, self._diemnguoi, self._diemmay, None, self._BanCo)
+        move = [position, chieu]
+        nextNode = self._minimax.Move(current, move)
+        
+        self.prepare_move_animation(position, chieu, nextNode)
+        # Không gọi UpdateGameState ngay lập tức, sẽ được gọi khi animation kết thúc
+
+    def _apply_game_state(self, nextNode):
+        """Áp dụng trạng thái game sau khi animation kết thúc"""
+        if nextNode is None:
+            return
+            
+        self._BanCo = nextNode.s
+        self._diemnguoi = nextNode.min_scored
+        self._diemmay = nextNode.max_scored
+        self._luotnguoi = nextNode.luotnguoi
+        
+        if not self._luotnguoi:
+            self.selected_pit = None
+            
+        self.KiemTra()
+        self.ThieuQuan()
+        
+        # Nếu đến lượt AI, thực hiện nước đi ngay
+        if not self._luotnguoi and not self._endgame:
+            self.AIMove()
     def _draw_ui(self, screen):
         """Vẽ giao diện người dùng (tách riêng để dễ quản lý)"""
         font_large = pygame.font.Font(None, 36)
@@ -318,6 +421,16 @@ class board:
         )
         screen.blit(turn_text, (270, 30))
 
+    def _get_scaled_stone_image(self, num_stones, scale_factor):
+        """Tạo ảnh đá được phóng to theo tỷ lệ"""
+        if num_stones <= 6:
+            original_img = self.stone_images[num_stones]
+        else:
+            original_img = self.default_stone_img
+
+        new_size = (int(original_img.get_width() * scale_factor), 
+                    int(original_img.get_height() * scale_factor))
+        return pygame.transform.scale(original_img, new_size)
     def _draw_endgame(self, screen):
         """Vẽ màn hình kết thúc game"""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
@@ -349,44 +462,7 @@ class board:
                 self._apply_game_state(nextNode)
             else:
                 self.pending_update = nextNode
-    def _apply_game_state(self, nextNode):
-        """Áp dụng trạng thái game ngay lập tức"""
-        self._BanCo = nextNode.s
-        self._diemnguoi = nextNode.min_scored
-        self._diemmay = nextNode.max_scored
-        self._luotnguoi = nextNode.luotnguoi
-        
-        if not self._luotnguoi:
-            self.selected_pit = None
-            
-        self.KiemTra()
-        self.ThieuQuan()
-    
 
-    def prepare_move_animation(self, start_pos, direction, new_board_state):
-        """Chuẩn bị đường đi cho hiệu ứng di chuyển"""
-        self.current_move_path = [start_pos]  # Bắt đầu từ ô được chọn
-        stones = self._BanCo[start_pos]
-        current_pos = start_pos
-        
-        for _ in range(stones):
-            current_pos += direction
-            # Xử lý vòng quanh bàn cờ
-            if current_pos < 0: current_pos = 11
-            elif current_pos > 11: current_pos = 0
-                
-            # Bỏ qua ô quan trừ khi là điểm cuối
-            if (current_pos in (0, 6)) and (_ != stones - 1):
-                current_pos += direction
-                if current_pos < 0: current_pos = 11
-                elif current_pos > 11: current_pos = 0
-                    
-            self.current_move_path.append(current_pos)
-        
-        self.current_move_index = 0
-        self.last_update_time = pygame.time.get_ticks()
-        self.animation_running = True  # Bật cờ hiệu ứng
-    
     def handle_click(self, pos):
         x, y = pos
 
@@ -416,16 +492,7 @@ class board:
                 return "move", 1
 
         return None
-    def HumanMove(self, position, chieu):
-        if not self._luotnguoi or self._endgame:
-            return
-            
-        current = Node(self._luotnguoi, self._diemnguoi, self._diemmay, None, self._BanCo)
-        move = [position, chieu]
-        nextNode = self._minimax.Move(current, move)
-        
-        self.prepare_move_animation(position, chieu, nextNode.s)
-        self.UpdateGameState(nextNode)
+
 
     def AIMove(self):
         if self._luotnguoi or self._endgame:
