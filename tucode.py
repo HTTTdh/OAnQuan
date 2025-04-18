@@ -198,6 +198,15 @@ class board:
         self.animation_speed = 0.5  # Tốc độ hiệu ứng (0.1-1.0), càng nhỏ càng chậm
         self.step_interval = int(500 / self.animation_speed)
     def UpdateGameState(self, nextNode):
+            """Cập nhật trạng thái game sau khi di chuyển"""
+            if not self.animation_running:  # Nếu không có hiệu ứng đang chạy
+                self._apply_game_state(nextNode)
+            else:
+                self.pending_update = nextNode
+    def _apply_game_state(self, nextNode):
+        """Áp dụng trạng thái game sau khi animation kết thúc"""
+        if nextNode is None:
+            return
         self._BanCo = nextNode.s
         self._diemnguoi = nextNode.min_scored
         self._diemmay = nextNode.max_scored
@@ -206,7 +215,35 @@ class board:
             self.selected_pit = None
         print(f"Ban co: {self._BanCo}")
         self.KiemTra()
-        self.ThieuQuan()   
+        self.ThieuQuan()  
+        if not self._luotnguoi and not self._endgame:
+            pygame.time.delay(1000)
+            self.AIMove()
+    def _draw_endgame(self, screen):
+        """Vẽ màn hình kết thúc game"""
+        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        screen.blit(overlay, (0, 0))
+
+        font_large = pygame.font.Font(None, 72)
+        font_medium = pygame.font.Font(None, 36)
+
+        if self._diemnguoi > self._diemmay:
+            result_text = font_large.render("YOU WIN!", True, (255, 50, 50))
+        elif self._diemnguoi < self._diemmay:
+            result_text = font_large.render("GAME OVER!", True, (255, 100, 100))
+        else:
+            result_text = font_large.render("Draw!", True, (255, 255, 100))
+
+        screen.blit(result_text, (self.width // 2 - result_text.get_width() // 2, self.height // 2 - 100))
+
+        score_text = font_medium.render(
+            f"Final Score: {self._diemnguoi} - {self._diemmay}", True, (255, 255, 255))
+        screen.blit(score_text, (self.width // 2 - score_text.get_width() // 2, self.height // 2 + 50))
+
+        restart_text = font_medium.render(
+            "Press R to restart or ESC to quit", True, (200, 200, 200))
+        screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2, self.height // 2 + 100))
     def draw(self, screen):
         screen.blit(self.background, (0, 0))
         
@@ -260,7 +297,34 @@ class board:
 
         if self._endgame:
             self._draw_endgame(screen)
+    def _draw_ui(self, screen):
+        """Vẽ giao diện người dùng (tách riêng để dễ quản lý)"""
+        font_large = pygame.font.Font(None, 36)
+        font_small = pygame.font.Font(None, 24)
 
+        # Vẽ khung điểm
+        pygame.draw.rect(screen, (50, 50, 50, 150), (30, 30, 200, 80), border_radius=10)
+        pygame.draw.rect(screen, (50, 50, 50, 150), (410, 30, 200, 80), border_radius=10)
+
+        # Điểm người chơi
+        player_title = font_small.render("PLAYER", True, (200, 200, 255))
+        player_score = font_large.render(f"{self._diemnguoi}", True, (255, 255, 255))
+        screen.blit(player_title, (50, 35))
+        screen.blit(player_score, (50, 60))
+
+        # Điểm AI
+        ai_title = font_small.render("COMPUTER", True, (255, 200, 200))
+        ai_score = font_large.render(f"{self._diemmay}", True, (255, 255, 255))
+        screen.blit(ai_title, (430, 35))
+        screen.blit(ai_score, (430, 60))
+
+        # Lượt chơi hiện tại
+        turn_text = font_small.render(
+            "Your turn" if self._luotnguoi else "Computer's turn",
+            True,
+            (100, 255, 100) if self._luotnguoi else (255, 100, 100)
+        )
+        screen.blit(turn_text, (270, 30))
     def _draw_animation(self, screen):
         """Vẽ hiệu ứng di chuyển từng viên đá một, bao gồm cả ô quan"""
         current_time = pygame.time.get_ticks()
@@ -327,7 +391,6 @@ class board:
                 text = self.quan_font.render(str(num_stones), True, self.text_color)
                 text_rect = text.get_rect(center=(x + w // 2, y + h + 15))
                 screen.blit(text, text_rect)
-
     def prepare_move_animation(self, start_pos, direction, new_board_state):
         """Chuẩn bị các bước di chuyển cho animation, giống logic của hàm Move"""
         self.pending_update = new_board_state
@@ -403,8 +466,6 @@ class board:
         self.current_animation_step = 0
         self.last_animation_time = pygame.time.get_ticks()
 
-
-
     def HumanMove(self, position, chieu):
         if not self._luotnguoi or self._endgame:
             return
@@ -414,98 +475,16 @@ class board:
         nextNode = self._minimax.Move(current, move)
         
         self.prepare_move_animation(position, chieu, nextNode)
-        # Không gọi UpdateGameState ngay lập tức, sẽ được gọi khi animation kết thúc
-
-    def _apply_game_state(self, nextNode):
-        """Áp dụng trạng thái game sau khi animation kết thúc"""
-        if nextNode is None:
+    def AIMove(self):
+        if self._luotnguoi or self._endgame:
             return
-            
-        self._BanCo = nextNode.s
-        self._diemnguoi = nextNode.min_scored
-        self._diemmay = nextNode.max_scored
-        self._luotnguoi = nextNode.luotnguoi
+
+        current = Node(self._luotnguoi, self._diemnguoi, self._diemmay, None, self._BanCo)
+        aiMove = self._minimax.MinimaxSearch(current, self._searchDepth)
+        nextNode = self._minimax.Move(current, aiMove)
         
-        if not self._luotnguoi:
-            self.selected_pit = None
-            
-        self.KiemTra()
-        self.ThieuQuan()
-        
-        if not self._luotnguoi and not self._endgame:
-                self.AIMove()
-
-    def _draw_ui(self, screen):
-        """Vẽ giao diện người dùng (tách riêng để dễ quản lý)"""
-        font_large = pygame.font.Font(None, 36)
-        font_small = pygame.font.Font(None, 24)
-
-        # Vẽ khung điểm
-        pygame.draw.rect(screen, (50, 50, 50, 150), (30, 30, 200, 80), border_radius=10)
-        pygame.draw.rect(screen, (50, 50, 50, 150), (410, 30, 200, 80), border_radius=10)
-
-        # Điểm người chơi
-        player_title = font_small.render("PLAYER", True, (200, 200, 255))
-        player_score = font_large.render(f"{self._diemnguoi}", True, (255, 255, 255))
-        screen.blit(player_title, (50, 35))
-        screen.blit(player_score, (50, 60))
-
-        # Điểm AI
-        ai_title = font_small.render("COMPUTER", True, (255, 200, 200))
-        ai_score = font_large.render(f"{self._diemmay}", True, (255, 255, 255))
-        screen.blit(ai_title, (430, 35))
-        screen.blit(ai_score, (430, 60))
-
-        # Lượt chơi hiện tại
-        turn_text = font_small.render(
-            "Your turn" if self._luotnguoi else "Computer's turn",
-            True,
-            (100, 255, 100) if self._luotnguoi else (255, 100, 100)
-        )
-        screen.blit(turn_text, (270, 30))
-
-    def _get_scaled_stone_image(self, num_stones, scale_factor):
-        """Tạo ảnh đá được phóng to theo tỷ lệ"""
-        if num_stones <= 6:
-            original_img = self.stone_images[num_stones]
-        else:
-            original_img = self.default_stone_img
-
-        new_size = (int(original_img.get_width() * scale_factor), 
-                    int(original_img.get_height() * scale_factor))
-        return pygame.transform.scale(original_img, new_size)
-    def _draw_endgame(self, screen):
-        """Vẽ màn hình kết thúc game"""
-        overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 180))
-        screen.blit(overlay, (0, 0))
-
-        font_large = pygame.font.Font(None, 72)
-        font_medium = pygame.font.Font(None, 36)
-
-        if self._diemnguoi > self._diemmay:
-            result_text = font_large.render("YOU WIN!", True, (255, 50, 50))
-        elif self._diemnguoi < self._diemmay:
-            result_text = font_large.render("GAME OVER!", True, (255, 100, 100))
-        else:
-            result_text = font_large.render("Draw!", True, (255, 255, 100))
-
-        screen.blit(result_text, (self.width // 2 - result_text.get_width() // 2, self.height // 2 - 100))
-
-        score_text = font_medium.render(
-            f"Final Score: {self._diemnguoi} - {self._diemmay}", True, (255, 255, 255))
-        screen.blit(score_text, (self.width // 2 - score_text.get_width() // 2, self.height // 2 + 50))
-
-        restart_text = font_medium.render(
-            "Press R to restart or ESC to quit", True, (200, 200, 200))
-        screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2, self.height // 2 + 100))
-        def UpdateGameState(self, nextNode):
-            """Cập nhật trạng thái game sau khi di chuyển"""
-            if not self.animation_running:  # Nếu không có hiệu ứng đang chạy
-                self._apply_game_state(nextNode)
-            else:
-                self.pending_update = nextNode
-
+        self.prepare_move_animation(aiMove[0], aiMove[1], nextNode.s)
+        self.UpdateGameState(nextNode)
     def handle_click(self, pos):
         x, y = pos
 
@@ -536,16 +515,6 @@ class board:
 
         return None
 
-    def AIMove(self):
-        if self._luotnguoi or self._endgame:
-            return
-
-        current = Node(self._luotnguoi, self._diemnguoi, self._diemmay, None, self._BanCo)
-        aiMove = self._minimax.MinimaxSearch(current, self._searchDepth)
-        nextNode = self._minimax.Move(current, aiMove)
-        
-        self.prepare_move_animation(aiMove[0], aiMove[1], nextNode.s)
-        self.UpdateGameState(nextNode)
     def KiemTra(self):
         if (
             (self._BanCo[0] == 0 and self._BanCo[6] == 0)
