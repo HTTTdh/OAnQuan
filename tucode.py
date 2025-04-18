@@ -133,6 +133,7 @@ class Minimax:
                 best_move = ke.cachdi
 
         return best_move
+
 class board:
     def __init__(self, pits, quan_pits, board):
         self.step_index = 0
@@ -557,11 +558,11 @@ class App:
             sound.set_volume(0.5)
         self.initial_pits = [
             (535, 170, 60, 80),
-            (150, 140, 50, 50),   
-            (220, 140, 50, 50),    
-            (290, 140, 50, 50),    
-            (360, 140, 50, 50),    
             (430, 140, 50, 50),
+            (360, 140, 50, 50),
+            (290, 140, 50, 50), 
+            (220, 140, 50, 50),  
+            (150, 140, 50, 50),   
             (45, 170, 60, 80),
             (150, 230, 50, 50),    
             (220, 230, 50, 50),    
@@ -569,7 +570,7 @@ class App:
             (360, 230, 50, 50),    
             (430, 230, 50, 50) 
         ]
-        self.initial_quan_pits = [(45, 170, 60, 80), (535, 170, 60, 80)]
+        self.initial_quan_pits = [(535, 170, 60, 80), (45, 170, 60, 80)]
         self.initial_board_state = [10] + [5] * 5 + [10] + [5] * 5
         
         self.reset_game()
@@ -606,7 +607,6 @@ class App:
 
         return True
 
-
     def run(self):
         """Vòng lặp chính của game"""
         clock = pygame.time.Clock()
@@ -634,7 +634,6 @@ class App:
             clock.tick(60)
 
         pygame.quit()
-
 
 if __name__ == '__main__':
     App().run()
