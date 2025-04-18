@@ -329,38 +329,80 @@ class board:
                 screen.blit(text, text_rect)
 
     def prepare_move_animation(self, start_pos, direction, new_board_state):
-        """Chuẩn bị các bước di chuyển cho animation, bao gồm cả ô quan"""
+        """Chuẩn bị các bước di chuyển cho animation, giống logic của hàm Move"""
         self.pending_update = new_board_state
         self.animation_steps = []
-        
+
         temp_board = self._BanCo.copy()
         stones_to_move = temp_board[start_pos]
         temp_board[start_pos] = 0
-        
+
         current_pos = start_pos
         self.animation_steps.append({
             'board': temp_board.copy(),
             'current_pit': None,
             'stones_left': stones_to_move
         })
-        
-        for stone in range(stones_to_move):
+
+        # Bước đầu tiên: rải toàn bộ stones_to_move
+        while stones_to_move > 0:
             current_pos += direction
-            # Xử lý vòng quanh bàn cờ
-            if current_pos < 0: current_pos = 11
-            elif current_pos > 11: current_pos = 0
-            
+            current_pos %= 12  # vòng quanh bàn cờ (0-11)
             temp_board[current_pos] += 1
-            
-            # Thêm bước vào animation (bao gồm cả khi qua ô quan)
+            stones_to_move -= 1
             self.animation_steps.append({
                 'board': temp_board.copy(),
                 'current_pit': current_pos,
-                'stones_left': stones_to_move - stone - 1
+                'stones_left': stones_to_move
             })
-        
+
+        # Giai đoạn sau lượt rải đầu tiên
+        MATLUOT = False
+        while not MATLUOT:
+            next_pos = (current_pos + direction) % 12
+
+            if temp_board[next_pos] > 0 and next_pos not in (0, 6):
+                stones_to_move = temp_board[next_pos]
+                temp_board[next_pos] = 0
+                current_pos = next_pos
+
+                self.animation_steps.append({
+                    'board': temp_board.copy(),
+                    'current_pit': current_pos,
+                    'stones_left': stones_to_move
+                })
+
+                while stones_to_move > 0:
+                    current_pos += direction
+                    current_pos %= 12
+                    temp_board[current_pos] += 1
+                    stones_to_move -= 1
+                    self.animation_steps.append({
+                        'board': temp_board.copy(),
+                        'current_pit': current_pos,
+                        'stones_left': stones_to_move
+                    })
+
+            elif next_pos in (0, 6):  # Gặp ô quan
+                MATLUOT = True
+            else:
+                next_next_pos = (next_pos + direction) % 12
+                if temp_board[next_next_pos] > 0:
+                    # "Ăn" quân tại ô kế tiếp của kế tiếp
+                    temp_board[next_next_pos] = 0
+                    self.animation_steps.append({
+                        'board': temp_board.copy(),
+                        'current_pit': next_next_pos,
+                        'stones_left': 0
+                    })
+                    current_pos = next_next_pos
+                    MATLUOT = True
+                else:
+                    MATLUOT = True
+
         self.current_animation_step = 0
         self.last_animation_time = pygame.time.get_ticks()
+
 
 
     def HumanMove(self, position, chieu):
@@ -390,9 +432,9 @@ class board:
         self.KiemTra()
         self.ThieuQuan()
         
-        # Nếu đến lượt AI, thực hiện nước đi ngay
         if not self._luotnguoi and not self._endgame:
-            self.AIMove()
+                self.AIMove()
+
     def _draw_ui(self, screen):
         """Vẽ giao diện người dùng (tách riêng để dễ quản lý)"""
         font_large = pygame.font.Font(None, 36)
@@ -493,7 +535,6 @@ class board:
                 return "move", 1
 
         return None
-
 
     def AIMove(self):
         if self._luotnguoi or self._endgame:
@@ -610,12 +651,8 @@ class App:
     def run(self):
         """Vòng lặp chính của game"""
         clock = pygame.time.Clock()
-        self.sound_effects['stone_pickup'].play()
-
-        self.ai_pending = False
-        self.ai_start_time = 0
-        self.ai_delay = 5000  
-
+        self.sound_effects['stone_pickup'].play() 
+        
         while self.running:
             self.running = self.handle_events()
 
