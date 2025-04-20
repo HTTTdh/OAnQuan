@@ -26,11 +26,6 @@ class board:
         self.pit_radius = 30
         self.pit_font = pygame.font.Font(None, 24)
         self.quan_font = pygame.font.Font(None, 28)
-        self.quan_border_color = (150, 100, 50)
-        self.pit_border_color = (120, 90, 40)
-        self.pit_fill_color = (250, 230, 200)
-        self.quan_fill_color = (255, 220, 160)
-        self.text_color = (20, 20, 20)
         self.background = pygame.image.load(os.path.join('Assets', 'ground.jpg'))
         self.background = pygame.transform.scale(self.background, (640, 400))
         self.stone_images = {
@@ -47,9 +42,9 @@ class board:
         self.img_quan = pygame.image.load(os.path.join('Assets', 'quan.png'))
         self.img_quan = pygame.transform.scale(self.img_quan, (60,80))
         self.img_left = pygame.image.load(os.path.join('Assets', 'arrow_left.png'))
-        self.img_left = pygame.transform.scale(self.img_left, (60,60))
+        self.img_left = pygame.transform.scale(self.img_left, (40,40))
         self.img_right = pygame.image.load(os.path.join('Assets', 'arrow_right.png'))
-        self.img_right = pygame.transform.scale(self.img_right, (60,60))
+        self.img_right = pygame.transform.scale(self.img_right, (40,40))
         self._minimax = Minimax()
         self._searchDepth = 2   
         self.width, self.height = 640, 400
@@ -62,6 +57,12 @@ class board:
         self.last_animation_time = 0
         self.animation_speed = 0.3  # Tốc độ hiệu ứng (0.1-1.0), càng nhỏ càng chậm
         self.step_interval = int(500 / self.animation_speed)
+        # Màu sắc mới
+        self.pit_border_color = (100, 70, 30)  # Màu viền ô dân
+        self.pit_fill_color = (240, 220, 180)  # Màu nền ô dân
+        self.quan_border_color = (150, 100, 50)  # Màu viền ô quan
+        self.quan_fill_color = (230, 200, 150)  # Màu nền ô quan
+        self.text_color = (20, 20, 20)  # Màu chữ
     def UpdateGameState(self, nextNode):
             """Cập nhật trạng thái game sau khi di chuyển"""
             if not self.animation_running:  # Nếu không có hiệu ứng đang chạy
@@ -102,7 +103,6 @@ class board:
         elif self._diemnguoi < self._diemmay:
             sound = self.sound_effects['lose']
             sound.play()
-            pygame.time.delay(1500)  # phát trong 2 giây
             sound.stop()
             result_text = font_large.render("GAME OVER!", True, (255, 100, 100))
         else:
@@ -119,25 +119,27 @@ class board:
         screen.blit(restart_text, (self.width // 2 - restart_text.get_width() // 2, self.height // 2 + 100))
     def draw(self, screen):
         screen.blit(self.background, (0, 0))
-        
-        # Vẽ các ô dân (chỉ phần nền)
         for i, pit_rect in enumerate(self.pits):
+            if i in (0, 6): continue  # Bỏ qua ô quan
+            
             x, y, w, h = pit_rect
-            center_x, center_y = x + w // 2, y + h // 2
-            pygame.draw.circle(screen, self.pit_fill_color, (center_x, center_y), self.pit_radius)
-            pygame.draw.circle(screen, self.pit_border_color, (center_x, center_y), self.pit_radius, 2)
-
+            pygame.draw.rect(screen, self.pit_fill_color, pit_rect, border_radius=5)
+            pygame.draw.rect(screen, self.pit_border_color, pit_rect, 2, border_radius=5)
+            
         # Vẽ các ô quan (luôn hiển thị đầy đủ)
         for i, quan_rect in enumerate(self.quan_pits):
             x, y, w, h = quan_rect
             pygame.draw.rect(screen, self.quan_fill_color, quan_rect, border_radius=10)
             pygame.draw.rect(screen, self.quan_border_color, quan_rect, 3, border_radius=10)
-            img_rect = self.img_quan.get_rect(center=(x + w // 2, y + h // 2))
-            screen.blit(self.img_quan, img_rect)
+            
             quan_value = self._BanCo[0] if i == 0 else self._BanCo[6]
             if quan_value > 0:
+                # Hiển thị hình ảnh quan
+                img_rect = self.img_quan.get_rect(center=(x + w//2, y + h//2))
+                screen.blit(self.img_quan, img_rect)
+                # Hiển thị số lượng
                 text = self.quan_font.render(str(quan_value), True, self.text_color)
-                text_rect = text.get_rect(center=(x + w // 2, y + h + 15))
+                text_rect = text.get_rect(center=(x + w//2, y + h//2))
                 screen.blit(text, text_rect)
 
         # Vẽ các viên đá trên các ô (khi không có animation)
@@ -153,9 +155,18 @@ class board:
                     stone_img = self.stone_images.get(num_stones, self.default_stone_img)
                     img_rect = stone_img.get_rect(center=(center_x, center_y))
                     screen.blit(stone_img, img_rect)
-                    
+
+                    # Hiển thị số lượng quân
                     text = self.pit_font.render(str(num_stones), True, self.text_color)
-                    screen.blit(text, (x + w , y + h + 20))
+
+                    if i in (1, 2, 3, 4, 5):  # Hàng trên
+                        # Căn giữa theo chiều ngang, 15px phía trên ô
+                        text_pos = (x + w//2 - text.get_width()//2, y - 25)
+                    elif i in (7, 8, 9, 10, 11):  # Hàng dưới
+                        # Căn giữa theo chiều ngang, 15px phía dưới ô
+                        text_pos = (x + w//2 - text.get_width()//2, y + h + 10)
+
+                    screen.blit(text, text_pos)
         else:
             # Vẽ animation di chuyển
             self._draw_animation(screen)
@@ -165,8 +176,8 @@ class board:
 
         if self.selected_pit is not None and self._luotnguoi:
             pit_x, pit_y, _, _ = self.pits[self.selected_pit]
-            screen.blit(self.img_left, (pit_x - 40, pit_y +40))
-            screen.blit(self.img_right, (pit_x + 40, pit_y +40))
+            screen.blit(self.img_left, (pit_x - 10, pit_y +60))
+            screen.blit(self.img_right, (pit_x + 30, pit_y +60))
 
         if self._endgame:
             self._draw_endgame(screen)
