@@ -18,6 +18,7 @@ class board:
         self.pits = pits
         self.quan_pits = quan_pits
         self.board = board
+        self.cachdi=None
         self._luotnguoi = True  
         self._diemnguoi = 0     
         self._diemmay = 0      
@@ -196,19 +197,13 @@ class board:
         screen.blit(player_title, (50, 35))
         screen.blit(player_score, (50, 60))
 
+
         # Điểm AI
         ai_title = font_small.render("COMPUTER", True, (255, 200, 200))
         ai_score = font_large.render(f"{self._diemmay}", True, (255, 255, 255))
         screen.blit(ai_title, (430, 35))
         screen.blit(ai_score, (430, 60))
 
-        # Lượt chơi hiện tại
-        turn_text = font_small.render(
-            "Your turn" if self._luotnguoi else "Computer's turn",
-            True,
-            (100, 255, 100) if self._luotnguoi else (255, 100, 100)
-        )
-        screen.blit(turn_text, (270, 30))
     def _draw_animation(self, screen):
         """Vẽ hiệu ứng di chuyển từng viên đá một, bao gồm cả ô quan"""
         current_time = pygame.time.get_ticks()
@@ -232,15 +227,21 @@ class board:
             x, y, w, h = pit_rect
             center_x, center_y = x + w//2, y + h//2
             num_stones = step['board'][i]
-            
-            # Vẽ nền ô
-            pygame.draw.circle(screen, self.pit_fill_color, (center_x, center_y), self.pit_radius)
-            pygame.draw.circle(screen, self.pit_border_color, (center_x, center_y), self.pit_radius, 2)
-            
+            pygame.draw.rect(screen, self.pit_fill_color, pit_rect, border_radius=5)
+            pygame.draw.rect(screen, self.pit_border_color, pit_rect, 2, border_radius=5)
             if num_stones > 0:
                 stone_img = self.stone_images.get(num_stones, self.default_stone_img)
                 img_rect = stone_img.get_rect(center=(center_x, center_y))
                 screen.blit(stone_img, img_rect)
+
+                text = self.pit_font.render(str(num_stones), True, self.text_color)
+
+                if i in (1, 2, 3, 4, 5):  # Hàng trên
+                    text_pos = (x + w//2 - text.get_width()//2, y - 25)
+                elif i in (7, 8, 9, 10, 11):  # Hàng dưới
+                    text_pos = (x + w//2 - text.get_width()//2, y + h + 10)
+
+                screen.blit(text, text_pos)
                 
                 # Highlight ô đang di chuyển đến
                 if i == step['current_pit']:
@@ -248,8 +249,7 @@ class board:
                     highlight.fill((255, 255, 0, 80))
                     screen.blit(highlight, (x, y))
                 
-                text = self.pit_font.render(str(num_stones), True, self.text_color)
-                screen.blit(text, (x + w - 20, y + h - 20))
+                
 
         # Vẽ các ô quan với hiệu ứng
         for i, quan_rect in enumerate(self.quan_pits):
@@ -268,10 +268,9 @@ class board:
             pygame.draw.rect(screen, fill_color, quan_rect, border_radius=10)
             pygame.draw.rect(screen, border_color, quan_rect, 3, border_radius=10)
             
-            img_rect = self.img_quan.get_rect(center=(x + w // 2, y + h // 2))
-            screen.blit(self.img_quan, img_rect)
-            
             if num_stones > 0:
+                img_rect = self.img_quan.get_rect(center=(x + w // 2, y + h // 2))
+                screen.blit(self.img_quan, img_rect)
                 text = self.quan_font.render(str(num_stones), True, self.text_color)
                 text_rect = text.get_rect(center=(x + w // 2, y + h + 15))
                 screen.blit(text, text_rect)
@@ -366,18 +365,18 @@ class board:
         current = Node(self._luotnguoi, self._diemnguoi, self._diemmay, None, self._BanCo)
         aiMove = self._minimax.MinimaxSearch(current, self._searchDepth)
         nextNode = self._minimax.Move(current, aiMove)
-        
         self.prepare_move_animation(aiMove[0], aiMove[1], nextNode.s)
         self.UpdateGameState(nextNode)
     def handle_click(self, pos):
         x, y = pos
-
+        
         for i, pit in enumerate(self.pits):
             pit_rect = pygame.Rect(pit)  
             if pit_rect.collidepoint(x, y):
                 if ((self._luotnguoi and i > 6) or (not self._luotnguoi and i <= 6)) and self._BanCo[i] > 0:
                     print(f"Click vào ô dân {i} có {self._BanCo[i]} viên sỏi")
                     self.selected_pit = i  
+                    self.cachdi = (i, None)
                     return "pit", i
                 else:
                     print(f"Không thể chọn ô {i} (có {self._BanCo[i]} viên sỏi) trong lượt này")
@@ -389,14 +388,16 @@ class board:
 
             if left_arrow.collidepoint(x, y):
                 print("Click vào mũi tên trái")
+                self.cachdi = (self.selected_pit, -1)
                 self.HumanMove(self.selected_pit, -1)
                 return "move", -1
                 
             if right_arrow.collidepoint(x, y):
                 print("Click vào mũi tên phải")
+                self.cachdi = (self.selected_pit, 1)
                 self.HumanMove(self.selected_pit, 1)
                 return "move", 1
-
+        self.cachdi = {}
         return None
 
     def KiemTra(self):

@@ -81,32 +81,25 @@ class Minimax:
                 soluong = _s[vitri_ke]
                 _s[vitri_ke] = 0
                 vitri = vitri_ke
-                # print(f"Bắt đầu di chuyển từ vị trí {vitri} với {soluong} quân cờ")
                 while soluong > 0:
                     vitri = self.SuaViTri(vitri + chieu)
                     _s[vitri] += 1
                     soluong -= 1
-                    # print(f"Di chuyển đến vị trí {vitri}, trạng thái hiệ1n tại: {_s}")
             elif vitri_ke == 0 or vitri_ke == 6:
                 MATLUOT = True
-                # print("Kết thúc")
             else:
-                vitri_keke = self.SuaViTri(vitri_ke + chieu)
-                # print(f"Kiểm tra vị trí kế tiếp của kế tiếp {vitri_keke}, giá trị: {_s[vitri_keke]}")
-                if _s[vitri_keke] > 0:
-                    diem += _s[vitri_keke]
-                    _s[vitri_keke] = 0
-                    vitri = vitri_keke
-                    # print(f"Ăn được điểm tại vị trí {vitri_keke}, điểm hiện tại: {diem}")
-                    MATLUOT = True
-                    # print("Kết thúc lượt di chuyển")
-                else:
-                    MATLUOT = True
-                    # print("Kết thúc lượt di chuyển")
-
+                while True:
+                    vitri_keke = self.SuaViTri(vitri_ke + chieu)
+                    if _s[vitri_ke] == 0 and _s[vitri_keke] > 0 and vitri_ke != 0 and vitri_ke != 6:
+                        diem += _s[vitri_keke]
+                        _s[vitri_keke] = 0
+                        vitri = vitri_keke
+                        vitri_ke = self.SuaViTri(vitri + chieu)
+                    else:
+                        MATLUOT = True
+                        break
         min_score = node.min_scored + (diem if node.luotnguoi else 0)
         max_score = node.max_scored + (diem if not node.luotnguoi else 0)
-        # print(f"Kết quả cuối cùng: min_score={min_score}, max_score={max_score}, trạng thái: {_s}")
         return Node(not node.luotnguoi, min_score, max_score, buocdi if node.cachdi is None else node.cachdi, _s)
 
     def SuaViTri(self, n):
